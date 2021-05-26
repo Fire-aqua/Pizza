@@ -1,0 +1,148 @@
+version: '3.5'
+
+x-enviroment: &laravelEnvironment
+  APP_NAME: ${APP_NAME}
+  APP_URL: "${BACKEND_HOST}:${BACKEND_EXTERNAL_PORT}"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_DATABASE: ${MYSQL_DATABASE}
+  DB_USERNAME: ${MYSQL_USER}
+  DB_PASSWORD: ${MYSQL_PASSWORD}
+  SCOUT_DRIVER: mysql
+
+services:
+  nginx-backend:
+    image: nginx:latest
+    container_name: ${APP_NAME}__nginx_backend
+    ports:
+      - ${BACKEND_EXTERNAL_PORT}:80
+    volumes:
+      - ./backend-app:${PROJECT_PATH}
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+      - mysql
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+  nginx-frontend:
+    image: nginx:latest
+    container_name: ${APP_NAME}__nginx_frontend
+    ports:
+      - ${FRONTEND_EXTERNAL_PORT}:80
+    volumes:
+      - ./frontend-app:${PROJECT_PATH}
+      - ./docker/nginx-frontend/default.conf:/etc/nginx/conf.d/default.conf
+
+  mysql:
+    image: mysql
+    container_name: ${APP_NAME}__mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - ${MYSQL_EXTERNAL_PORT}:3306
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: ${APP_NAME}__mysql
+    volumes:
+      - ./docker/dbdata:/var/lib/mysql/
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+
+  php:
+    build:
+      args:
+        user: ${USER_NAME}
+        uid:  ${USER_UID}
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}__php
+    volumes:
+      - ./backend-app:${PROJECT_PATH}
+      - ./docker/php/php.local.ini:/usr/local/etc/php/conf.d/php.local.ini
+    environment: *laravelEnvironment
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  php-horizon:
+    build:
+      args:
+        user: ${USER_NAME}
+        uid:  ${USER_UID}
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}__php-horizon
+    volumes:
+      - ./backend-app:${PROJECT_PATH}
+      - ./docker/php-horizon/supervisord.conf:/etc/supervisord.conf
+    entrypoint: ['/usr/bin/supervisord', '-n', '-c',  '/etc/supervisord.conf']
+    environment: *laravelEnvironment
+    depends_on:
+      - redis
+      - mysql
+
+  redis:
+    image: redis
+    container_name: ${APP_NAME}__redis
+    restart: on-failure
+    ports:
+      - ${REDIS_EXTERNAL_PORT}:6379
+
+  composer:
+    build:
+      args:
+        user: ${USER_NAME}
+        uid:  ${USER_UID}
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}__composer
+    volumes:
+      - ./backend-app:${PROJECT_PATH}
+    working_dir: ${PROJECT_PATH}
+    entrypoint: ['composer']
+
+  yarn:
+    image: node
+    container_name: ${APP_NAME}__yarn
+    volumes:
+      - ./frontend-app:${PROJECT_PATH}
+    working_dir: ${PROJECT_PATH}
+    entrypoint: ['yarn']
+    ports:
+    - "8080:8080"
+
+  artisan:
+    build:
+      args:
+        user: ${USER_NAME}
+        uid:  ${USER_UID}
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}__artisan
+    volumes:
+      - ./backend-app:${PROJECT_PATH}
+    depends_on:
+      - mysql
+    working_dir: ${PROJECT_PATH}
+    entrypoint: ['php', '${PROJECT_PATH}/artisan']
+    environment: *laravelEnvironment
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: ${APP_NAME}__pma
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: ${APP_NAME}__mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: 'root'
+      PMA_USER: 'root'
+      PMA_PASSWORD: 'root'
+      PMA_ARBITRARY: 1
+    restart: always
+    ports:
+      - ${PHPMYADMIN_EXTERNAL_PORT}:80
