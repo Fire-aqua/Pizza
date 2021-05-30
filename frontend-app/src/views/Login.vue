@@ -43,16 +43,19 @@ import Component from "vue-class-component";
 export default class Registration extends Vue {
   enter = {
     login: "admin",
-    password: "admin1234"
-    } 
+    password: "admin"
+  } 
 
   login() {
     axios.post('/login', {
       login: this.enter.login,
       password: this.enter.password
     })
-    .then()
-    .catch(error => {console.log(error)})
+    .then(() => {
+      this.$store.commit('loginUser')
+      this.$router.push({ name: 'Admin' })
+    })
+    .catch(error => console.log(error))
   }
 }
 </script>

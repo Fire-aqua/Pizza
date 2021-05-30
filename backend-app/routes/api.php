@@ -25,4 +25,5 @@ Route::group([
     Route::get('/orders', [OrderController::class, 'list']);    
     Route::post('/delete-order', [OrderController::class, 'deleteOrder']);
     Route::get('/download-order', [OrderController::class, 'downloadOrder']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 });

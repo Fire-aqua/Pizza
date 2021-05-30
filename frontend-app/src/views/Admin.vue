@@ -109,10 +109,12 @@ export default class Admin extends Vue {
 
   async getOrdersFromServer() {
     this.orderLoad = true
-    await axios.get("/orders").then((response) => {
-      this.orders = response.data
-      this.orderLoad = false
-    });
+    await axios.get("/orders")
+    .then((response) => {
+      this.orders = response.data  
+    })
+    .catch(() => alert('Пожалуйста, авторизуйтесь для просмотра'));
+    this.orderLoad = false
   }
 
   downloadOrders() {
